@@ -30,8 +30,8 @@ Replace `USER` with your Compute Canada username below.
 ```bash
 ssh USER@vulcan.alliancecan.ca
 cd /scratch/USER
-git clone <REPO_URL> Agentic
-cd Agentic
+git clone <REPO_URL> PaperPilot
+cd PaperPilot
 ```
 
 ### 2.2 Create the Python environment
@@ -75,7 +75,7 @@ The pipeline uses two models (see `paperpilot/config.py`):
 Pull them once on the login node so they end up cached in `/scratch`:
 
 ```bash
-export OLLAMA_MODELS=/scratch/USER/Agentic/.ollama/models
+export OLLAMA_MODELS=/scratch/USER/PaperPilot/.ollama/models
 /scratch/USER/ollama_extracted/bin/ollama serve &
 OLLAMA_PID=$!
 sleep 5
@@ -100,7 +100,7 @@ to port 5050 on the login node, so your browser can reach the UI server.
 ### 3.2 On the login node — start the UI
 
 ```bash
-cd /scratch/USER/Agentic
+cd /scratch/USER/PaperPilot
 bash ui/start_ui.sh
 ```
 
@@ -141,10 +141,10 @@ directly:
 
 ```bash
 # 1. Put your input in para.tex
-$EDITOR /scratch/USER/Agentic/para.tex
+$EDITOR /scratch/USER/PaperPilot/para.tex
 
 # 2. Submit the compute job (uses the section/topic env vars below)
-cd /scratch/USER/Agentic
+cd /scratch/USER/PaperPilot
 PAPERPILOT_SECTION=method PAPERPILOT_TOPIC="your topic" ./run_pipeline.sh
 ```
 

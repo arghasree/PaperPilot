@@ -196,6 +196,9 @@
     margin-bottom: 6px;
   }
   .preview ol.refs li.missing { color: #c00; }
+  .diff-add { background: #bbf7d0; border-radius: 2px; padding: 0 1px; }
+  .diff-del { background: #fecaca; border-radius: 2px; padding: 0 1px;
+              text-decoration: line-through; color: #9ca3af; }
 
   @media (max-width: 900px) {
     .output-grid { grid-template-columns: 1fr; }
@@ -277,7 +280,12 @@ python ui/app.py
 
 <!-- Rendered preview -->
 <section class="panel">
-  <h2>Rendered preview</h2>
+  <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+    <h2 style="margin:0">Rendered preview</h2>
+    <label style="display:flex; align-items:center; gap:6px; font-size:13px; color:var(--muted); cursor:pointer;">
+      <input type="checkbox" id="diff-toggle"> Show changes
+    </label>
+  </div>
   <div class="preview" id="preview"><em style="color:#888">No output yet.</em></div>
 </section>
 
@@ -297,6 +305,9 @@ const outBibEl  = $('#out-bib');
 const previewEl = $('#preview');
 
 let pollHandle = null;
+let originalLatex = '';
+let lastOutputTex = '';
+let lastOutputBib = '';
 
 function setStatus(state, text) {
   dot.className = 'dot ' + state;
@@ -306,6 +317,7 @@ function setStatus(state, text) {
 async function runPipeline() {
   const latex = latexEl.value.trim();
   if (!latex) { setStatus('failed', 'paste a paragraph first'); return; }
+  originalLatex = latex;
 
   setStatus('running', 'submitting…');
   logEl.textContent = '';
@@ -353,9 +365,11 @@ function pollStatus(jobId) {
         setStatus('done', 'done');
         clearInterval(pollHandle); pollHandle = null;
         runBtn.disabled = false;
-        outTexEl.textContent = d.output_tex || '(empty)';
-        outBibEl.textContent = d.output_bib || '(empty)';
-        renderPreview(d.output_tex, d.output_bib);
+        lastOutputTex = d.output_tex || '';
+        lastOutputBib = d.output_bib || '';
+        outTexEl.textContent = lastOutputTex || '(empty)';
+        outBibEl.textContent = lastOutputBib || '(empty)';
+        renderPreview(lastOutputTex, lastOutputBib, $('#diff-toggle').checked);
       } else if (d.status === 'failed') {
         setStatus('failed', 'failed (rc=' + d.returncode + ')');
         clearInterval(pollHandle); pollHandle = null;
@@ -363,6 +377,48 @@ function pollStatus(jobId) {
       }
     } catch (e) { /* keep polling */ }
   }, 1500);
+}
+
+function stripToPlain(tex) {
+  return tex
+    .replace(/\\section\*?\{([^}]*)\}/g, '$1')
+    .replace(/\\subsection\*?\{([^}]*)\}/g, '$1')
+    .replace(/\\textbf\{([^}]*)\}/g, '$1')
+    .replace(/\\textit\{([^}]*)\}/g, '$1')
+    .replace(/\\emph\{([^}]*)\}/g, '$1')
+    .replace(/\\cite\{([^}]+)\}/g, (m, keys) => '[' + keys.split(',').map(k => k.trim()).join(', ') + ']')
+    .replace(/\\[a-zA-Z]+\{[^}]*\}/g, '')
+    .replace(/\s+/g, ' ').trim();
+}
+
+function diffWords(a, b) {
+  const aw = a.split(/\s+/).filter(Boolean);
+  const bw = b.split(/\s+/).filter(Boolean);
+  const m = aw.length, n = bw.length;
+  // LCS DP table
+  const dp = Array.from({length: m + 1}, () => new Uint16Array(n + 1));
+  for (let i = m - 1; i >= 0; i--)
+    for (let j = n - 1; j >= 0; j--)
+      dp[i][j] = aw[i] === bw[j] ? 1 + dp[i+1][j+1] : Math.max(dp[i+1][j], dp[i][j+1]);
+  // Backtrack
+  const ops = [];
+  let i = 0, j = 0;
+  while (i < m || j < n) {
+    if (i < m && j < n && aw[i] === bw[j]) { ops.push({t: 'eq', v: aw[i]}); i++; j++; }
+    else if (j < n && (i >= m || dp[i][j+1] >= dp[i+1][j])) { ops.push({t: 'ins', v: bw[j]}); j++; }
+    else { ops.push({t: 'del', v: aw[i]}); i++; }
+  }
+  return ops;
+}
+
+function renderDiffHtml(origTex, outTex) {
+  const ops = diffWords(stripToPlain(origTex), stripToPlain(outTex));
+  return '<p>' + ops.map(op => {
+    const w = escapeHtml(op.v);
+    if (op.t === 'eq')  return w + ' ';
+    if (op.t === 'ins') return `<mark class="diff-add">${w}</mark> `;
+    return `<del class="diff-del">${w}</del> `;
+  }).join('') + '</p>';
 }
 
 function parseBib(text) {
@@ -416,7 +472,7 @@ function escapeHtml(s) {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-function renderPreview(tex, bib) {
+function renderPreview(tex, bib, showDiff = false) {
   if (!tex) {
     previewEl.innerHTML = '<em style="color:#888">No output yet.</em>';
     return;
@@ -425,28 +481,36 @@ function renderPreview(tex, bib) {
   const used = new Map();
   let counter = 1;
 
-  // Strip the LaTeX commands we care about, replace \cite with numbered superscripts
-  let html = tex
-    .replace(/\\section\*?\{([^}]*)\}/g, (m, t) => `<h2>${escapeHtml(t)}</h2>`)
-    .replace(/\\subsection\*?\{([^}]*)\}/g, (m, t) => `<h3>${escapeHtml(t)}</h3>`)
-    .replace(/\\textbf\{([^}]*)\}/g, '<strong>$1</strong>')
-    .replace(/\\textit\{([^}]*)\}/g, '<em>$1</em>')
-    .replace(/\\emph\{([^}]*)\}/g, '<em>$1</em>')
-    .replace(/\\cite\{([^}]+)\}/g, (m, keys) => {
-      const nums = keys.split(',').map(k => k.trim()).map(k => {
-        if (!used.has(k)) used.set(k, counter++);
-        return `<a href="#ref-${used.get(k)}">${used.get(k)}</a>`;
-      });
-      return `<sup>[${nums.join(', ')}]</sup>`;
-    });
+  // Always extract cite keys from output (for the references section)
+  tex.replace(/\\cite\{([^}]+)\}/g, (m, keys) => {
+    keys.split(',').map(k => k.trim()).forEach(k => { if (!used.has(k)) used.set(k, counter++); });
+  });
 
-  // Paragraphs from blank lines
-  html = html.split(/\n\s*\n/).map(p => {
-    const t = p.trim();
-    if (!t) return '';
-    if (t.startsWith('<h2') || t.startsWith('<h3')) return t;
-    return '<p>' + t.replace(/\n/g, ' ') + '</p>';
-  }).join('\n');
+  let html;
+  if (showDiff && originalLatex) {
+    html = renderDiffHtml(originalLatex, tex);
+  } else {
+    // Normal rendered view
+    html = tex
+      .replace(/\\section\*?\{([^}]*)\}/g, (m, t) => `<h2>${escapeHtml(t)}</h2>`)
+      .replace(/\\subsection\*?\{([^}]*)\}/g, (m, t) => `<h3>${escapeHtml(t)}</h3>`)
+      .replace(/\\textbf\{([^}]*)\}/g, '<strong>$1</strong>')
+      .replace(/\\textit\{([^}]*)\}/g, '<em>$1</em>')
+      .replace(/\\emph\{([^}]*)\}/g, '<em>$1</em>')
+      .replace(/\\cite\{([^}]+)\}/g, (m, keys) => {
+        const nums = keys.split(',').map(k => k.trim()).map(k => {
+          return `<a href="#ref-${used.get(k)}">${used.get(k)}</a>`;
+        });
+        return `<sup>[${nums.join(', ')}]</sup>`;
+      });
+
+    html = html.split(/\n\s*\n/).map(p => {
+      const t = p.trim();
+      if (!t) return '';
+      if (t.startsWith('<h2') || t.startsWith('<h3')) return t;
+      return '<p>' + t.replace(/\n/g, ' ') + '</p>';
+    }).join('\n');
+  }
 
   // References list
   let refsHtml = '';
@@ -483,6 +547,10 @@ latexEl.addEventListener('paste', () => {
 });
 
 runBtn.addEventListener('click', runPipeline);
+
+$('#diff-toggle').addEventListener('change', function() {
+  if (lastOutputTex) renderPreview(lastOutputTex, lastOutputBib, this.checked);
+});
 </script>
 
 </body>
