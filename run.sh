@@ -4,7 +4,8 @@
 #SBATCH --gpus=1
 #SBATCH --cpus-per-task=4
 
-PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# SLURM_SUBMIT_DIR is always set to where sbatch was called; fall back to dirname for local runs
+PROJECT_DIR="${SLURM_SUBMIT_DIR:-$(cd "$(dirname "$0")" && pwd)}"
 
 module load python/3.10
 module load postgresql
@@ -13,6 +14,9 @@ source /scratch/$USER/agentic/bin/activate
 
 echo "HTTP_PROXY=$HTTP_PROXY HTTPS_PROXY=$HTTPS_PROXY http_proxy=$http_proxy https_proxy=$https_proxy"
 unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy
+
+# Override HOME so Ollama doesn't try to write to the SLURM job spool directory
+export HOME=/scratch/$USER
 
 # Models stored in scratch to avoid filling home quota
 export OLLAMA_CONTEXT_LENGTH=8192
