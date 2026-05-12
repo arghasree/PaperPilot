@@ -24,7 +24,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
-PROJECT_DIR = Path(f"/scratch/{os.environ['USER']}/Agentic")
+PROJECT_DIR = Path(__file__).resolve().parent.parent
 PARA_TEX = PROJECT_DIR / "para.tex"
 OUTPUT_DIR = PROJECT_DIR / "output"
 SCRIPT = PROJECT_DIR / "run_pipeline.sh"

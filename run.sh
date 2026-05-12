@@ -4,8 +4,10 @@
 #SBATCH --gpus=1
 #SBATCH --cpus-per-task=4
 
+PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
 module load python/3.10
-module load postgresql  
+module load postgresql
 
 source /scratch/$USER/agentic/bin/activate
 
@@ -14,7 +16,7 @@ unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy
 
 # Models stored in scratch to avoid filling home quota
 export OLLAMA_CONTEXT_LENGTH=8192
-export OLLAMA_MODELS=/scratch/$USER/Agentic/.ollama/models
+export OLLAMA_MODELS="$PROJECT_DIR/.ollama/models"
 /scratch/$USER/ollama_extracted/bin/ollama serve &
 OLLAMA_PID=$!
 
@@ -30,9 +32,9 @@ until curl -s http://localhost:11434/api/tags > /dev/null 2>&1; do
 done
 echo "Ollama ready"
 
-python paperpilot/main.py \
---input /scratch/$USER/Agentic/para.tex \
---output-dir /scratch/$USER/Agentic/output \
+python "$PROJECT_DIR/paperpilot/main.py" \
+--input "$PROJECT_DIR/para.tex" \
+--output-dir "$PROJECT_DIR/output" \
 --section "${PAPERPILOT_SECTION:-method}" \
 --topic "${PAPERPILOT_TOPIC:-Embodied co-design}"
 

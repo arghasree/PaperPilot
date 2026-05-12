@@ -1,2 +1,3 @@
-bi-level optimization multi-domain applications
-computational co-design morphological adaptation testing
+limitations of discrete taxonomy in embodied co-design
+open research questions in embodied co-design
+taxonomy limitations in embodied co-design surveys
