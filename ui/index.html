@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>PaperPilot</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #1a1d24;
+    --border: #2a2f3a;
+    --text: #e4e7eb;
+    --muted: #8b94a0;
+    --accent: #4f8cf7;
+    --good: #4ade80;
+    --bad: #f87171;
+    --warn: #fbbf24;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+  }
+  header {
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+  }
+  header h1 { font-size: 18px; margin: 0; font-weight: 600; }
+  header .sub { color: var(--muted); font-size: 13px; }
+
+  main {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 20px;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+  }
+  .panel h2 {
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--muted);
+    margin: 0 0 12px;
+  }
+
+  details.help summary {
+    cursor: pointer;
+    color: var(--accent);
+    font-size: 13px;
+  }
+  details.help pre {
+    background: #0a0c10;
+    padding: 12px;
+    border-radius: 6px;
+    overflow-x: auto;
+    font-size: 12px;
+    margin-top: 8px;
+  }
+
+  textarea, input, select {
+    width: 100%;
+    background: #0a0c10;
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px;
+    font-family: "SF Mono", Monaco, Consolas, monospace;
+    font-size: 13px;
+  }
+  textarea { resize: vertical; min-height: 150px; }
+  textarea:focus, input:focus, select:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+
+  .field-row {
+    display: grid;
+    grid-template-columns: 1fr 2fr auto;
+    gap: 12px;
+    margin-top: 12px;
+    align-items: end;
+  }
+  .field label {
+    display: block;
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 4px;
+  }
+  button {
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 10px 20px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: opacity 0.1s;
+  }
+  button:hover { opacity: 0.9; }
+  button:disabled {
+    background: var(--border);
+    color: var(--muted);
+    cursor: not-allowed;
+  }
+
+  .status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+  }
+  .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--muted);
+  }
+  .dot.running { background: var(--warn); animation: pulse 1.2s infinite; }
+  .dot.done    { background: var(--good); }
+  .dot.failed  { background: var(--bad); }
+  @keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: 0.4 } }
+
+  pre.log {
+    background: #0a0c10;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px;
+    margin: 12px 0 0;
+    font-size: 12px;
+    max-height: 240px;
+    overflow: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .output-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  pre.code {
+    background: #0a0c10;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px;
+    margin: 0;
+    font-size: 12px;
+    max-height: 360px;
+    overflow: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-family: "SF Mono", Monaco, Consolas, monospace;
+  }
+
+  .preview {
+    background: #fbfbf8;
+    color: #1a1a1a;
+    border-radius: 6px;
+    padding: 28px 36px;
+    font-family: "Times New Roman", Times, serif;
+    font-size: 15px;
+    line-height: 1.7;
+  }
+  .preview h2 {
+    font-size: 22px;
+    margin: 0 0 16px;
+    color: #1a1a1a;
+    border: none;
+  }
+  .preview h3 {
+    font-size: 16px;
+    margin: 24px 0 8px;
+    color: #1a1a1a;
+  }
+  .preview sup a {
+    color: #c00;
+    text-decoration: none;
+    font-size: 12px;
+  }
+  .preview ol.refs {
+    padding-left: 24px;
+    font-size: 13px;
+  }
+  .preview ol.refs li {
+    margin-bottom: 6px;
+  }
+  .preview ol.refs li.missing { color: #c00; }
+
+  @media (max-width: 900px) {
+    .output-grid { grid-template-columns: 1fr; }
+    .field-row { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>PaperPilot</h1>
+  <span class="sub">Paste a LaTeX paragraph → submit → preview</span>
+</header>
+
+<main>
+
+<!-- Login help -->
+<section class="panel">
+  <details class="help">
+    <summary>First time? Compute Canada login &amp; port forward</summary>
+    <p style="color: var(--muted); font-size: 13px; margin: 12px 0 8px;">
+      Run these from <em>your local machine</em>. The UI server runs on the Compute Canada
+      login node; the SSH tunnel exposes it to your browser at <code>http://localhost:5050</code>.
+    </p>
+    <pre>
+# 1. SSH in (replace USER and CLUSTER with your account)
+ssh -L 5050:localhost:5050 USER@vulcan.alliancecan.ca
+
+# 2. On the login node:
+cd /scratch/USER/Agentic
+source /scratch/USER/agentic/bin/activate
+python ui/app.py
+
+# 3. Open http://localhost:5050 in your local browser</pre>
+  </details>
+</section>
+
+<!-- Input -->
+<section class="panel">
+  <h2>Input</h2>
+  <textarea id="latex" placeholder="Paste your LaTeX paragraph here. The pipeline will trigger automatically on paste."></textarea>
+  <div class="field-row">
+    <div class="field">
+      <label>Section</label>
+      <select id="section">
+        <option value="intro">intro</option>
+        <option value="method" selected>method</option>
+        <option value="experiment">experiment</option>
+        <option value="conclusion">conclusion</option>
+        <option value="abstract">abstract</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Topic</label>
+      <input id="topic" placeholder="e.g. Embodied co-design" />
+    </div>
+    <button id="run-btn">Run pipeline</button>
+  </div>
+</section>
+
+<!-- Status / log -->
+<section class="panel">
+  <h2>Pipeline log</h2>
+  <div class="status">
+    <span class="dot" id="status-dot"></span>
+    <span id="status-text">idle</span>
+  </div>
+  <pre class="log" id="log"></pre>
+</section>
+
+<!-- Output files -->
+<section class="panel">
+  <h2>output.tex &amp; output.bib</h2>
+  <div class="output-grid">
+    <pre class="code" id="out-tex"><em style="color:#888">empty — paste a paragraph to run the pipeline</em></pre>
+    <pre class="code" id="out-bib"><em style="color:#888">empty — paste a paragraph to run the pipeline</em></pre>
+  </div>
+</section>
+
+<!-- Rendered preview -->
+<section class="panel">
+  <h2>Rendered preview</h2>
+  <div class="preview" id="preview"><em style="color:#888">No output yet.</em></div>
+</section>
+
+</main>
+
+<script>
+const $ = sel => document.querySelector(sel);
+const latexEl   = $('#latex');
+const sectionEl = $('#section');
+const topicEl   = $('#topic');
+const runBtn    = $('#run-btn');
+const dot       = $('#status-dot');
+const statusEl  = $('#status-text');
+const logEl     = $('#log');
+const outTexEl  = $('#out-tex');
+const outBibEl  = $('#out-bib');
+const previewEl = $('#preview');
+
+let pollHandle = null;
+
+function setStatus(state, text) {
+  dot.className = 'dot ' + state;
+  statusEl.textContent = text;
+}
+
+async function runPipeline() {
+  const latex = latexEl.value.trim();
+  if (!latex) { setStatus('failed', 'paste a paragraph first'); return; }
+
+  setStatus('running', 'submitting…');
+  logEl.textContent = '';
+  runBtn.disabled = true;
+
+  let resp;
+  try {
+    resp = await fetch('/run', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        latex,
+        section: sectionEl.value,
+        topic: topicEl.value || 'Embodied co-design',
+      }),
+    });
+  } catch (e) {
+    setStatus('failed', 'request failed: ' + e.message);
+    runBtn.disabled = false;
+    return;
+  }
+  if (!resp.ok) {
+    const err = await resp.text();
+    setStatus('failed', 'server error: ' + err);
+    runBtn.disabled = false;
+    return;
+  }
+  const { job_id } = await resp.json();
+  pollStatus(job_id);
+}
+
+function pollStatus(jobId) {
+  if (pollHandle) clearInterval(pollHandle);
+  pollHandle = setInterval(async () => {
+    try {
+      const r = await fetch('/status/' + jobId);
+      if (!r.ok) return;
+      const d = await r.json();
+      logEl.textContent = d.log || '';
+      logEl.scrollTop = logEl.scrollHeight;
+
+      if (d.status === 'running' || d.status === 'starting') {
+        setStatus('running', d.status);
+      } else if (d.status === 'done') {
+        setStatus('done', 'done');
+        clearInterval(pollHandle); pollHandle = null;
+        runBtn.disabled = false;
+        outTexEl.textContent = d.output_tex || '(empty)';
+        outBibEl.textContent = d.output_bib || '(empty)';
+        renderPreview(d.output_tex, d.output_bib);
+      } else if (d.status === 'failed') {
+        setStatus('failed', 'failed (rc=' + d.returncode + ')');
+        clearInterval(pollHandle); pollHandle = null;
+        runBtn.disabled = false;
+      }
+    } catch (e) { /* keep polling */ }
+  }, 1500);
+}
+
+function parseBib(text) {
+  // Parse BibTeX into { key: { field: value, ... }, ... }.
+  // Handles single-line entries (e.g. doi.org output) and multi-line entries,
+  // values wrapped in {…} (with one level of nesting) or "…" or bare tokens.
+  const entries = {};
+  if (!text) return entries;
+
+  const headerRe = /@(\w+)\s*\{\s*([^,\s}]+)\s*,/g;
+  let h;
+  while ((h = headerRe.exec(text)) !== null) {
+    const key = h[2];
+    // Brace-count from just after the header to find the matching closing brace.
+    let depth = 1;
+    let i = h.index + h[0].length;
+    while (i < text.length && depth > 0) {
+      const c = text[i];
+      if (c === '{') depth++;
+      else if (c === '}') depth--;
+      i++;
+    }
+    const body = text.slice(h.index + h[0].length, i - 1);
+
+    const fields = {};
+    const fieldRe = /(\w+)\s*=\s*(?:\{((?:[^{}]|\{[^{}]*\})*)\}|"([^"]*)"|([^,\s}][^,}]*))/g;
+    let f;
+    while ((f = fieldRe.exec(body)) !== null) {
+      const value = f[2] !== undefined ? f[2] : (f[3] !== undefined ? f[3] : f[4]);
+      fields[f[1].toLowerCase()] = (value || '').trim();
+    }
+    entries[key] = fields;
+    headerRe.lastIndex = i;
+  }
+  return entries;
+}
+
+function formatAuthors(raw) {
+  if (!raw) return '';
+  const names = raw.split(/\s+and\s+/).map(n => {
+    n = n.trim();
+    if (n.includes(',')) return n.split(',')[0].trim();          // "Smith, John" → "Smith"
+    const parts = n.split(/\s+/);
+    return parts[parts.length - 1];                              // "John Smith" → "Smith"
+  });
+  if (names.length <= 2) return names.join(' and ');
+  return names[0] + ' et al.';
+}
+
+function escapeHtml(s) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function renderPreview(tex, bib) {
+  if (!tex) {
+    previewEl.innerHTML = '<em style="color:#888">No output yet.</em>';
+    return;
+  }
+  const entries = parseBib(bib || '');
+  const used = new Map();
+  let counter = 1;
+
+  // Strip the LaTeX commands we care about, replace \cite with numbered superscripts
+  let html = tex
+    .replace(/\\section\*?\{([^}]*)\}/g, (m, t) => `<h2>${escapeHtml(t)}</h2>`)
+    .replace(/\\subsection\*?\{([^}]*)\}/g, (m, t) => `<h3>${escapeHtml(t)}</h3>`)
+    .replace(/\\textbf\{([^}]*)\}/g, '<strong>$1</strong>')
+    .replace(/\\textit\{([^}]*)\}/g, '<em>$1</em>')
+    .replace(/\\emph\{([^}]*)\}/g, '<em>$1</em>')
+    .replace(/\\cite\{([^}]+)\}/g, (m, keys) => {
+      const nums = keys.split(',').map(k => k.trim()).map(k => {
+        if (!used.has(k)) used.set(k, counter++);
+        return `<a href="#ref-${used.get(k)}">${used.get(k)}</a>`;
+      });
+      return `<sup>[${nums.join(', ')}]</sup>`;
+    });
+
+  // Paragraphs from blank lines
+  html = html.split(/\n\s*\n/).map(p => {
+    const t = p.trim();
+    if (!t) return '';
+    if (t.startsWith('<h2') || t.startsWith('<h3')) return t;
+    return '<p>' + t.replace(/\n/g, ' ') + '</p>';
+  }).join('\n');
+
+  // References list
+  let refsHtml = '';
+  if (used.size) {
+    const items = [];
+    for (const [key, num] of used) {
+      const e = entries[key];
+      if (!e) {
+        items.push(`<li id="ref-${num}" class="missing">[${num}] missing entry: <code>${escapeHtml(key)}</code></li>`);
+      } else {
+        const authors = formatAuthors(e.author);
+        const title = e.title || '';
+        const venue = e.journal || e.booktitle || '';
+        const year = e.year || '';
+        items.push(
+          `<li id="ref-${num}">${escapeHtml(authors)}. "${escapeHtml(title)}." ` +
+          `${escapeHtml(venue)}${venue && year ? ', ' : ''}${escapeHtml(year)}.</li>`
+        );
+      }
+    }
+    refsHtml = '<h3>References</h3><ol class="refs">' + items.join('') + '</ol>';
+  }
+
+  previewEl.innerHTML = html + refsHtml;
+}
+
+// Auto-trigger on paste (small delay so multi-event pastes settle)
+let pasteTimer = null;
+latexEl.addEventListener('paste', () => {
+  if (pasteTimer) clearTimeout(pasteTimer);
+  pasteTimer = setTimeout(() => {
+    if (latexEl.value.trim()) runPipeline();
+  }, 400);
+});
+
+runBtn.addEventListener('click', runPipeline);
+</script>
+
+</body>
+</html>

@@ -1,0 +1,8 @@
+.ollama
+output/
+grid.sh
+next.md
+ollama
+slurm-*.out
+paper_search_cache.json
+PLAN.md
